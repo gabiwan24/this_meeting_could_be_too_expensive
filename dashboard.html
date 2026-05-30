@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Meeting Cost Tracker</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0a0c10;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 40px 32px;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 40px;
+    }
+    header h1 { font-size: 1rem; font-weight: 600; color: #475569; letter-spacing: 0.08em; text-transform: uppercase; }
+    #clock { font-size: 0.8rem; color: #334155; }
+
+    /* ── LIVE MEETING BLOCK ── */
+    #live-block {
+      background: #0f1923;
+      border: 1px solid #1e3a5f;
+      border-radius: 20px;
+      padding: 40px;
+      margin-bottom: 32px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #live-block.has-directors   { border-color: #854d0e; }
+    #live-block.critical-directors { border-color: #7f1d1d; }
+    #live-block.no-meeting      { border-color: #1e293b; background: #0d1117; }
+
+    /* Glow */
+    #live-block::before {
+      content: '';
+      position: absolute;
+      top: -60px; left: -60px;
+      width: 200px; height: 200px;
+      background: radial-gradient(circle, #1d4ed820 0%, transparent 70%);
+      pointer-events: none;
+    }
+    #live-block.has-directors::before   { background: radial-gradient(circle, #92400e20 0%, transparent 70%); }
+    #live-block.critical-directors::before { background: radial-gradient(circle, #7f1d1d30 0%, transparent 70%); }
+
+    .live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #14532d;
+      color: #4ade80;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 999px;
+      margin-bottom: 20px;
+    }
+    .live-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #4ade80;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    #meeting-title {
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.2;
+      margin-bottom: 28px;
+      color: #f8fafc;
+    }
+
+    .live-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+
+    @media (max-width: 640px) { .live-grid { grid-template-columns: 1fr; } }
+
+    .live-stat label {
+      display: block;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #475569;
+      margin-bottom: 8px;
+    }
+
+    .live-stat .value {
+      font-size: 2.8rem;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: -0.03em;
+    }
+
+    .live-stat .value.cost   { color: #38bdf8; font-size: 3.2rem; }
+    .live-stat .value.warn   { color: #f59e0b; }
+    .live-stat .value.danger { color: #ef4444; }
+    .live-stat .value.normal { color: #94a3b8; }
+    .live-stat .sub { font-size: 0.75rem; color: #475569; margin-top: 6px; }
+
+    /* Attendee list */
+    .attendee-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 0.78rem;
+      font-weight: 500;
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      color: #cbd5e1;
+    }
+    .chip.lvl3 { border-color: #1d4ed8; background: #0c1a3a; color: #93c5fd; }
+    .chip.lvl4 { border-color: #b45309; background: #1c0f00; color: #fcd34d; }
+    .chip.lvl5 { border-color: #b91c1c; background: #1c0000; color: #fca5a5; }
+
+    .chip-cost { color: #475569; font-size: 0.72rem; }
+
+    /* ── LAST MEETING ── */
+    #last-meeting {
+      background: #0d1117;
+      border: 1px solid #1e293b;
+      border-radius: 16px;
+      padding: 28px 32px;
+    }
+
+    .last-header {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #334155;
+      margin-bottom: 16px;
+    }
+
+    .last-grid {
+      display: flex;
+      align-items: baseline;
+      gap: 32px;
+      flex-wrap: wrap;
+    }
+
+    .last-title { font-size: 1.1rem; font-weight: 700; color: #94a3b8; flex: 1; min-width: 200px; }
+    .last-cost  { font-size: 2rem; font-weight: 800; color: #475569; }
+    .last-meta  { font-size: 0.78rem; color: #334155; }
+
+    /* ── No meeting ── */
+    .no-meeting-msg {
+      text-align: center;
+      padding: 40px;
+      color: #334155;
+    }
+    .no-meeting-msg .icon { font-size: 2.5rem; margin-bottom: 12px; }
+    .no-meeting-msg p { font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Meeting Cost Tracker</h1>
+    <div id="clock">–</div>
+  </header>
+
+  <!-- LIVE MEETING -->
+  <div id="live-block" class="no-meeting">
+    <div id="live-inner">
+      <div class="no-meeting-msg">
+        <div class="icon">✓</div>
+        <p>Kein laufendes Meeting</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- LAST FINISHED MEETING -->
+  <div id="last-meeting" style="display:none">
+    <div class="last-header">Letztes abgeschlossenes Meeting</div>
+    <div class="last-grid">
+      <div class="last-title" id="last-title">–</div>
+      <div>
+        <div class="last-cost" id="last-cost">–</div>
+        <div class="last-meta" id="last-meta">–</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================
+    const SUPABASE_URL     = 'https://bhzbpkwzkdvxcsmttkqf.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_XHipEnQfRttYiaCasdWZfg_2HdhskcI';
+    // ============================================================
+
+    const HEADERS = {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+    };
+
+    let currentMeeting  = null;
+    let currentAttendees = [];
+    let tickInterval    = null;
+
+    // ── Fetch from Supabase ──────────────────────────────────────
+    async function loadData() {
+      try {
+        const today = new Date().toISOString().split('T')[0];
+
+        const [mRes, aRes] = await Promise.all([
+          fetch(`${SUPABASE_URL}/rest/v1/meetings?start_time=gte.${today}T00:00:00&order=start_time.desc&limit=10`, { headers: HEADERS }),
+          fetch(`${SUPABASE_URL}/rest/v1/attendances?order=cost.desc`, { headers: HEADERS })
+        ]);
+
+        const meetings   = await mRes.json();
+        const attendances = await aRes.json();
+
+        if (!Array.isArray(meetings)) return;
+
+        const running  = meetings.find(m => m.status === 'running');
+        const finished = meetings.filter(m => m.status === 'finished');
+        const lastDone = finished[0] || null;
+
+        // Build attendee map
+        const attMap = {};
+        for (const a of attendances) {
+          if (!attMap[a.meeting_id]) attMap[a.meeting_id] = [];
+          attMap[a.meeting_id].push(a);
+        }
+
+        renderLive(running, attMap[running?.id] || []);
+        renderLast(lastDone, attMap[lastDone?.id] || []);
+
+      } catch(e) {
+        console.error('Load error:', e);
+      }
+    }
+
+    // ── Live Meeting ─────────────────────────────────────────────
+    function renderLive(meeting, attendees) {
+      const block = document.getElementById('live-block');
+
+      if (!meeting) {
+        currentMeeting = null;
+        currentAttendees = [];
+        clearInterval(tickInterval);
+        block.className = 'no-meeting';
+        document.getElementById('live-inner').innerHTML = `
+          <div class="no-meeting-msg">
+            <div class="icon">✓</div>
+            <p>Kein laufendes Meeting</p>
+          </div>`;
+        return;
+      }
+
+      currentMeeting   = meeting;
+      currentAttendees = attendees;
+
+      // Director alert class
+      const dirCount = attendees.filter(a => a.importance_level >= 3).length;
+      const ratio    = attendees.length ? dirCount / attendees.length : 0;
+      block.className = ratio > 0.5 ? 'critical-directors' : dirCount >= 2 ? 'has-directors' : '';
+
+      // Attendee chips
+      const chips = attendees.map(a => {
+        const lvlClass = a.importance_level >= 5 ? 'lvl5' : a.importance_level >= 4 ? 'lvl4' : a.importance_level >= 3 ? 'lvl3' : '';
+        return `<div class="chip ${lvlClass}">
+          <span>${escHtml(a.name || a.email)}</span>
+          <span class="chip-cost" id="chip-cost-${safeId(a.email)}">–</span>
+        </div>`;
+      }).join('');
+
+      document.getElementById('live-inner').innerHTML = `
+        <div class="live-badge"><span class="live-dot"></span>Live</div>
+        <div id="meeting-title">${escHtml(meeting.title || '(kein Betreff)')}</div>
+        <div class="live-grid">
+          <div class="live-stat">
+            <label>Laufende Kosten</label>
+            <div class="value cost" id="live-cost">–</div>
+            <div class="sub" id="live-duration">–</div>
+          </div>
+          <div class="live-stat">
+            <label>Teilnehmer</label>
+            <div class="value normal">${attendees.length}</div>
+            <div class="sub">eingeladen</div>
+          </div>
+          <div class="live-stat">
+            <label>Direktoren</label>
+            <div class="value ${ratio > 0.5 ? 'danger' : dirCount >= 2 ? 'warn' : 'normal'}" id="live-directors">
+              ${dirCount}
+            </div>
+            <div class="sub">${dirCount > 0 ? Math.round(ratio * 100) + '% der Anwesenden' : 'keine'}</div>
+          </div>
+        </div>
+        <div class="attendee-list">${chips}</div>`;
+
+      // Start live ticker
+      clearInterval(tickInterval);
+      tick();
+      tickInterval = setInterval(tick, 1000);
+    }
+
+    // ── Tick every second ────────────────────────────────────────
+    function tick() {
+      if (!currentMeeting) return;
+
+      const start       = new Date(currentMeeting.start_time);
+      const elapsedMins = (Date.now() - start) / 60000;
+
+      // Recalculate costs from attendees × elapsed time
+      let total = 0;
+      for (const a of currentAttendees) {
+        const cost = elapsedMins * ((a.cost / (currentMeeting.total_cost_estimated || 1))
+          * (currentMeeting.total_cost_estimated || 0) / currentAttendees.length);
+        // Use stored rate if available, otherwise scale from estimated
+      }
+
+      // Use the stored estimated cost and scale it by time
+      const baseCost    = currentMeeting.total_cost_estimated || 0;
+      const baseElapsed = (new Date(currentMeeting.updated_at) - start) / 60000 || elapsedMins;
+      const ratePerMin  = baseElapsed > 0 ? baseCost / baseElapsed : 0;
+      const liveCost    = ratePerMin * elapsedMins;
+
+      const h = Math.floor(elapsedMins / 60);
+      const m = Math.floor(elapsedMins % 60);
+      const s = Math.floor((elapsedMins * 60) % 60);
+      const dur = h > 0 ? `${h}h ${m}m ${s}s` : `${m}m ${s}s`;
+
+      const costEl = document.getElementById('live-cost');
+      const durEl  = document.getElementById('live-duration');
+      if (costEl) costEl.textContent = formatEuro(liveCost);
+      if (durEl)  durEl.textContent  = dur + ' gelaufen';
+
+      // Per-person costs
+      for (const a of currentAttendees) {
+        const el = document.getElementById('chip-cost-' + safeId(a.email));
+        if (!el || !a.cost || !baseElapsed) continue;
+        const personRate = a.cost / baseElapsed;
+        el.textContent   = formatEuro(personRate * elapsedMins);
+      }
+    }
+
+    // ── Last Meeting ─────────────────────────────────────────────
+    function renderLast(meeting, attendees) {
+      const block = document.getElementById('last-meeting');
+      if (!meeting) { block.style.display = 'none'; return; }
+
+      block.style.display = 'block';
+      const cost = meeting.total_cost_final ?? meeting.total_cost_estimated ?? 0;
+      const start = new Date(meeting.start_time);
+      const end   = meeting.end_time ? new Date(meeting.end_time) : null;
+      const dur   = end ? Math.round((end - start) / 60000) : '?';
+      const dirs  = attendees.filter(a => a.importance_level >= 3).length;
+
+      document.getElementById('last-title').textContent = meeting.title || '(kein Betreff)';
+      document.getElementById('last-cost').textContent  = formatEuro(cost);
+      document.getElementById('last-meta').textContent  =
+        `${start.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'})}` +
+        (end ? ` – ${end.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'})}` : '') +
+        ` · ${dur} Min · ${attendees.length} Teilnehmer` +
+        (dirs > 0 ? ` · ${dirs} Direktor${dirs > 1 ? 'en' : ''}` : '') +
+        (meeting.total_cost_final ? '' : ' (geschätzt)');
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────
+    function formatEuro(v) {
+      if (v == null || isNaN(v)) return '–';
+      return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2 }).format(v);
+    }
+    function escHtml(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+    function safeId(s) {
+      return String(s).replace(/[^a-z0-9]/gi, '_');
+    }
+
+    // ── Clock ────────────────────────────────────────────────────
+    function updateClock() {
+      document.getElementById('clock').textContent =
+        new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // ── Init ─────────────────────────────────────────────────────
+    loadData();
+    setInterval(loadData, 30 * 1000); // Daten alle 30s neu laden
+  </script>
+</body>
+</html>
